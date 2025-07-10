@@ -54,20 +54,20 @@ class MainActivity : AppCompatActivity() {
         // Initialize NFC adapter
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         
+        // Create a PendingIntent for NFC foreground dispatch
+        val intent = Intent(this, javaClass).apply {
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        
         // Check and request permissions
         checkAndRequestPermissions()
         
         // Handle NFC intent if the app was launched by scanning an NFC tag
-        if (intent?.action in listOf(
-                NfcAdapter.ACTION_NDEF_DISCOVERED,
-                NfcAdapter.ACTION_TAG_DISCOVERED,
-                NfcAdapter.ACTION_TECH_DISCOVERED
-            )
-        ) {
-            intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)?.let { tag ->
-                processTag(tag)
-            }
-        }
+        handleIntent(intent)
     }
     
     
@@ -114,6 +114,10 @@ class MainActivity : AppCompatActivity() {
         
         if (!NFCUtils.isNFCEnabled(this)) {
             showNfcDisabledAlert()
+        } else {
+            // NFC is supported and enabled
+            updateStatus(getString(R.string.ready_to_scan))
+            enableNfcForegroundDispatch()
         }
     }
     
@@ -185,6 +189,7 @@ class MainActivity : AppCompatActivity() {
             else -> {
                 updateStatus(getString(R.string.ready_to_scan))
                 debugButton.visibility = View.VISIBLE
+                enableNfcForegroundDispatch()
             }
         }
     }
@@ -207,6 +212,75 @@ class MainActivity : AppCompatActivity() {
             }
             .setCancelable(false)
             .show()
+    }
+    
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Handle NFC intents when the app is already running
+        handleIntent(intent)
+    }
+    
+    private fun handleIntent(intent: Intent) {
+        if (intent.action in arrayOf(
+                NfcAdapter.ACTION_NDEF_DISCOVERED,
+                NfcAdapter.ACTION_TAG_DISCOVERED,
+                NfcAdapter.ACTION_TECH_DISCOVERED
+            )
+        ) {
+            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+            tag?.let { processTag(it) }
+        }
+    }
+    
+    private fun enableNfcForegroundDispatch() {
+        nfcAdapter?.let { adapter ->
+            try {
+                val intent = Intent(this, javaClass).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                
+                val pendingIntent = PendingIntent.getActivity(
+                    this, 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                val intentFilters = arrayOf(
+                    IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED).apply {
+                        try {
+                            addDataType("*/*")
+                        } catch (e: IntentFilter.MalformedMimeTypeException) {
+                            Log.e(TAG, "Malformed MIME type", e)
+                        }
+                    },
+                    IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED),
+                    IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED)
+                )
+                
+                adapter.enableForegroundDispatch(this, pendingIntent, intentFilters, NFCUtils.TECH_LISTS)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error enabling NFC foreground dispatch", e)
+            }
+        }
+    }
+    
+    private fun disableNfcForegroundDispatch() {
+        nfcAdapter?.let { adapter ->
+            try {
+                adapter.disableForegroundDispatch(this)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error disabling NFC foreground dispatch", e)
+            }
+        }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        enableNfcForegroundDispatch()
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        disableNfcForegroundDispatch()
     }
     
     private fun showNfcDebugInfo() {
