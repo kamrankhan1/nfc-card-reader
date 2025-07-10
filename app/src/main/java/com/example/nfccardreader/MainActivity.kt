@@ -74,43 +74,11 @@ class MainActivity : AppCompatActivity() {
         // Set initial UI state
         updateUIState(UIState.READY)
 
-        // Check if device supports NFC
+        // Initialize NFC adapter
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         
-        Log.d(TAG, "NFC Adapter: $nfcAdapter")
-        
-        // Check and request NFC permissions
+        // Check and request permissions first
         checkAndRequestPermissions()
-        
-        if (nfcAdapter == null) {
-            // NFC is not supported on this device
-            val errorMsg = getString(R.string.nfc_required)
-            Log.e(TAG, errorMsg)
-            updateUIState(UIState.ERROR, errorMsg)
-        } else if (!nfcAdapter!!.isEnabled) {
-            // NFC is not enabled
-            val errorMsg = getString(R.string.nfc_disabled)
-            Log.w(TAG, errorMsg)
-            updateUIState(UIState.ERROR, errorMsg)
-            
-            // Show how to enable NFC
-            val enableNfcIntent = Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
-            if (enableNfcIntent.resolveActivity(packageManager) != null) {
-                startActivity(enableNfcIntent)
-            }
-        } else {
-            // NFC is available and enabled
-            Log.d(TAG, "NFC is enabled and ready")
-            updateUIState(UIState.READY)
-            
-            // Check if we have a tag from the intent that launched us
-            handleIntent(intent)
-            
-            // Set up debug button
-            findViewById<Button>(R.id.debugButton).setOnClickListener {
-                showNfcDebugInfo()
-            }
-        }
     }
 
     override fun onResume() {
@@ -382,34 +350,32 @@ class MainActivity : AppCompatActivity() {
 
     
     private fun checkAndRequestPermissions() {
-        val permissionsToRequest = mutableListOf<String>()
-        
-        // Check NFC permission
-        if (checkSelfPermission(android.Manifest.permission.NFC) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(android.Manifest.permission.NFC)
-        }
-        
-        // Check VIBRATE permission (only needed for Android 12+)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            if (checkSelfPermission(android.Manifest.permission.VIBRATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(android.Manifest.permission.VIBRATE)
-            }
-        }
-        
-        if (permissionsToRequest.isNotEmpty()) {
-            // Request missing permissions
+        // Check if we have NFC permission
+        if (checkSelfPermission(android.Manifest.permission.NFC) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // We have NFC permission, initialize NFC
+            initializeNfc()
+        } else {
+            // Request NFC permission
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                requestPermissions(
-                    permissionsToRequest.toTypedArray(),
-                    PERMISSION_REQUEST_CODE
-                )
+                // Show a dialog explaining why we need NFC permission
+                AlertDialog.Builder(this)
+                    .setTitle("NFC Permission Required")
+                    .setMessage("This app needs NFC permission to read NFC tags. Please grant the permission to continue.")
+                    .setPositiveButton("OK") { _, _ ->
+                        requestPermissions(
+                            arrayOf(android.Manifest.permission.NFC),
+                            PERMISSION_REQUEST_CODE
+                        )
+                    }
+                    .setNegativeButton("Cancel") { _, _ ->
+                        updateUIState(UIState.ERROR, "NFC permission is required to read cards")
+                    }
+                    .setCancelable(false)
+                    .show()
             } else {
-                // For older versions, just initialize NFC
+                // For older versions, just initialize NFC (permission is granted at install time)
                 initializeNfc()
             }
-        } else {
-            // All permissions already granted, initialize NFC
-            initializeNfc()
         }
     }
     
@@ -419,57 +385,70 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when (requestCode) {
-            PERMISSION_REQUEST_CODE -> {
-                var allPermissionsGranted = true
-                var nfcPermissionGranted = false
+        
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            // Check if NFC permission was granted
+            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                // NFC permission was granted, initialize NFC
+                initializeNfc()
+            } else {
+                // NFC permission was denied
+                updateUIState(UIState.ERROR, "NFC permission is required to read cards")
                 
-                // Check each permission result
-                for (i in permissions.indices) {
-                    if (grantResults[i] != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        allPermissionsGranted = false
-                        if (permissions[i] == android.Manifest.permission.NFC) {
-                            updateUIState(UIState.ERROR, "NFC permission is required to read cards")
-                            return@onRequestPermissionsResult
-                        }
-                    } else if (permissions[i] == android.Manifest.permission.NFC) {
-                        nfcPermissionGranted = true
+                // Show a dialog explaining why we need the permission
+                AlertDialog.Builder(this)
+                    .setTitle("NFC Permission Required")
+                    .setMessage("This app needs NFC permission to read NFC tags. Please grant the permission in app settings.")
+                    .setPositiveButton("Open Settings") { _, _ ->
+                        // Open app settings so the user can grant the permission
+                        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        val uri = Uri.fromParts("package", packageName, null)
+                        intent.data = uri
+                        startActivity(intent)
                     }
-                }
-                
-                if (allPermissionsGranted || nfcPermissionGranted) {
-                    // All required permissions granted, initialize NFC
-                    initializeNfc()
-                } else {
-                    updateUIState(UIState.ERROR, "Required permissions were not granted")
-                }
+                    .setNegativeButton("Cancel", null)
+                    .show()
             }
         }
     }
     
     private fun initializeNfc() {
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         if (nfcAdapter == null) {
             updateUIState(UIState.ERROR, "This device doesn't support NFC")
             return
         }
-        
+
         if (!nfcAdapter!!.isEnabled) {
-            updateUIState(UIState.ERROR, "Please enable NFC in Settings")
-            // Open NFC settings with the correct intent
-            val intent = when {
-                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR2 -> {
-                    // For newer devices, use the NFC settings intent
-                    Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
+            // NFC is not enabled, show a dialog to guide the user
+            AlertDialog.Builder(this)
+                .setTitle("Enable NFC")
+                .setMessage("NFC is required for this app. Would you like to enable it now?")
+                .setPositiveButton("Open Settings") { _, _ ->
+                    try {
+                        val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                            Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
+                        } else {
+                            Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
+                        }
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error opening NFC settings", e)
+                        updateUIState(UIState.ERROR, "Could not open NFC settings. Please enable NFC manually.")
+                    }
                 }
-                else -> {
-                    // Fallback for older devices
-                    Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
+                .setNegativeButton("Cancel") { _, _ ->
+                    updateUIState(UIState.ERROR, "NFC is required to use this app")
                 }
-            }
-            startActivity(intent)
+                .setCancelable(false)
+                .show()
         } else {
+            // NFC is enabled and ready
             updateUIState(UIState.READY)
+            Log.d(TAG, "NFC is enabled and ready")
+            
+            // Handle any NFC intents if the app was launched by an NFC tag
+            handleIntent(intent)
         }
     }
     
