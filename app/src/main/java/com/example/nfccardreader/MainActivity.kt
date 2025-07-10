@@ -63,6 +63,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        
+        log("=== App Started ===")
+        log("Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
 
         // Initialize views
         initializeViews()
@@ -70,20 +73,43 @@ class MainActivity : AppCompatActivity() {
         // Initialize NFC adapter
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         
+        log("NFC Adapter initialized: ${nfcAdapter != null}")
+        log("NFC Enabled: ${nfcAdapter?.isEnabled ?: false}")
+        
         // Create a PendingIntent for NFC foreground dispatch
         val intent = Intent(this, javaClass).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
-        pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        
+        pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+        } else {
+            PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        }
+        
+        log("PendingIntent created: ${pendingIntent != null}")
         
         // Check and request permissions
         checkAndRequestPermissions()
         
         // Handle NFC intent if the app was launched by scanning an NFC tag
-        handleIntent(intent)
+        if (intent?.action in arrayOf(
+                NfcAdapter.ACTION_NDEF_DISCOVERED,
+                NfcAdapter.ACTION_TAG_DISCOVERED,
+                NfcAdapter.ACTION_TECH_DISCOVERED
+            ) || NfcAdapter.ACTION_TAG_DISCOVERED == intent?.action
+        ) {
+            log("Launch intent contains NFC data")
+            handleIntent(intent)
+        } else {
+            log("No NFC data in launch intent")
+        }
     }
     
     
@@ -245,58 +271,112 @@ class MainActivity : AppCompatActivity() {
     
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        log("onNewIntent called with action: ${intent.action}")
+        Log.d(TAG, "onNewIntent called with action: ${intent.action}")
+        
         // Handle NFC intents when the app is already running
-        handleIntent(intent)
-    }
-    
-    private fun handleIntent(intent: Intent) {
-        Log.d(TAG, "handleIntent called with action: ${intent.action}")
         if (intent.action in arrayOf(
                 NfcAdapter.ACTION_NDEF_DISCOVERED,
                 NfcAdapter.ACTION_TAG_DISCOVERED,
                 NfcAdapter.ACTION_TECH_DISCOVERED
-            )
+            ) || NfcAdapter.ACTION_TAG_DISCOVERED == intent.action
         ) {
-            Log.d(TAG, "NFC intent received")
-            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
-            if (tag != null) {
-                Log.d(TAG, "Tag detected with ID: ${tag.id.joinToString("") { "%02x".format(it) }}")
-                Log.d(TAG, "Tag tech list: ${tag.techList.joinToString()}")
-                processTag(tag)
-            } else {
-                Log.e(TAG, "Received NFC intent but tag is null")
-            }
+            log("Processing NFC intent in onNewIntent")
+            handleIntent(intent)
+        } else {
+            log("Non-NFC intent received: ${intent.action}")
+        }
+    }
+    
+    private fun handleIntent(intent: Intent) {
+        log("Handling intent with action: ${intent.action}")
+        Log.d(TAG, "handleIntent called with action: ${intent.action}")
+        
+        // Log all extras for debugging
+        intent.extras?.keySet()?.forEach { key ->
+            log("Intent extra - $key: ${intent.extras?.get(key)}")
+            Log.d(TAG, "Intent extra - $key: ${intent.extras?.get(key)}")
+        }
+        
+        val tag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+        }
+        
+        if (tag != null) {
+            val tagId = tag.id.joinToString("") { "%02X".format(it) }
+            log("NFC Tag Detected - ID: $tagId")
+            log("Tag Tech List: ${tag.techList.joinToString()}")
+            Log.d(TAG, "Tag detected with ID: $tagId")
+            Log.d(TAG, "Tag tech list: ${tag.techList.joinToString()}")
+            
+            // Process the tag on a background thread
+            processTag(tag)
+        } else {
+            val errorMsg = "Received NFC intent but couldn't extract tag data"
+            log("ERROR: $errorMsg")
+            Log.e(TAG, errorMsg)
+            showError("Couldn't read tag data. Please try again.")
+        }
         }
     }
     
     private fun enableNfcForegroundDispatch() {
         log("Enabling NFC foreground dispatch")
         Log.d(TAG, "enableNfcForegroundDispatch called")
+        
+        if (nfcAdapter == null) {
+            log("ERROR: NFC Adapter is not available")
+            showError("NFC is not available on this device")
+            return
+        }
+        
+        if (!nfcAdapter?.isEnabled == true) {
+            log("ERROR: NFC is disabled")
+            showNfcDisabledAlert()
+            return
+        }
+        
         nfcAdapter?.let { adapter ->
             try {
+                log("NFC Adapter state - isEnabled: ${adapter.isEnabled}")
                 Log.d(TAG, "Setting up NFC foreground dispatch")
+                
+                // Create intent for foreground dispatch
                 val intent = Intent(this, javaClass).apply {
                     addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
                 
-                val pendingIntent = PendingIntent.getActivity(
-                    this, 0, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
+                // Create pending intent for foreground dispatch
+                val pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    PendingIntent.getActivity(
+                        this, 0, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                    )
+                } else {
+                    PendingIntent.getActivity(
+                        this, 0, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                }
                 
-                val intentFilters = arrayOf(
-                    IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED).apply {
-                        try {
-                            addDataType("*/*")
-                        } catch (e: IntentFilter.MalformedMimeTypeException) {
-                            Log.e(TAG, "Malformed MIME type", e)
-                        }
-                    },
-                    IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED),
-                    IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED)
-                )
+                // Set up intent filters for all NFC events
+                val ndef = IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED)
+                try {
+                    ndef.addDataType("*/*")
+                } catch (e: IntentFilter.MalformedMimeTypeException) {
+                    log("ERROR: Malformed MIME type: ${e.message}")
+                    throw RuntimeException("Malformed MIME type", e)
+                }
                 
-                // Use the tech lists from NFCUtils
+                val tagDetected = IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)
+                val techDetected = IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED)
+                
+                val intentFilters = arrayOf(ndef, tagDetected, techDetected)
+                
+                // Tech lists for different NFC tag types
                 val techLists = arrayOf(
                     arrayOf(NfcA::class.java.name),
                     arrayOf(NfcB::class.java.name),
@@ -308,7 +388,11 @@ class MainActivity : AppCompatActivity() {
                     arrayOf(MifareUltralight::class.java.name),
                     arrayOf(IsoDep::class.java.name)
                 )
+                
+                // Enable foreground dispatch
                 adapter.enableForegroundDispatch(this, pendingIntent, intentFilters, techLists)
+                log("NFC foreground dispatch enabled successfully")
+                updateStatus("Ready to scan NFC tag...")
             } catch (e: Exception) {
                 Log.e(TAG, "Error enabling NFC foreground dispatch", e)
             }
@@ -327,12 +411,29 @@ class MainActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        log("App resumed")
+        log("=== onResume ===")
         Log.d(TAG, "onResume: Enabling NFC foreground dispatch")
+        
+        // Re-initialize NFC adapter in case it changed
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        log("NFC Adapter re-initialized: ${nfcAdapter != null}")
+        
+        // Enable foreground dispatch
         enableNfcForegroundDispatch()
+        
+        // Log NFC state
         val nfcEnabled = nfcAdapter?.isEnabled ?: false
-        log("NFC adapter state - isEnabled: $nfcEnabled")
-        Log.d(TAG, "NFC adapter state - isEnabled: $nfcEnabled")
+        log("NFC Adapter State - isEnabled: $nfcEnabled")
+        log("NFC Adapter Info: ${nfcAdapter?.toString() ?: "Not available"}")
+        
+        // Check if device supports NFC
+        if (nfcAdapter == null) {
+            showError("This device doesn't support NFC")
+        } else if (!nfcEnabled) {
+            showNfcDisabledAlert()
+        } else {
+            updateStatus("Ready to scan NFC tag...")
+        }
     }
     
     override fun onPause() {
