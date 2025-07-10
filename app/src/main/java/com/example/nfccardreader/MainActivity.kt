@@ -11,6 +11,7 @@ import android.view.animation.AnimationUtils
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.Toast
+import android.widget.Button
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.appcompat.app.AppCompatActivity
@@ -53,14 +54,39 @@ class MainActivity : AppCompatActivity() {
         // Set initial UI state
         updateUIState(UIState.READY)
 
+        // Check if device supports NFC
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
-
+        
+        Log.d(TAG, "NFC Adapter: $nfcAdapter")
+        
         if (nfcAdapter == null) {
-            updateUIState(UIState.ERROR, getString(R.string.nfc_required))
+            // NFC is not supported on this device
+            val errorMsg = getString(R.string.nfc_required)
+            Log.e(TAG, errorMsg)
+            updateUIState(UIState.ERROR, errorMsg)
         } else if (!nfcAdapter!!.isEnabled) {
-            updateUIState(UIState.ERROR, getString(R.string.nfc_disabled))
+            // NFC is not enabled
+            val errorMsg = getString(R.string.nfc_disabled)
+            Log.w(TAG, errorMsg)
+            updateUIState(UIState.ERROR, errorMsg)
+            
+            // Show how to enable NFC
+            val enableNfcIntent = Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
+            if (enableNfcIntent.resolveActivity(packageManager) != null) {
+                startActivity(enableNfcIntent)
+            }
         } else {
+            // NFC is available and enabled
+            Log.d(TAG, "NFC is enabled and ready")
             updateUIState(UIState.READY)
+            
+            // Check if we have a tag from the intent that launched us
+            handleIntent(intent)
+            
+            // Set up debug button
+            findViewById<Button>(R.id.debugButton).setOnClickListener {
+                showNfcDebugInfo()
+            }
         }
     }
 
@@ -78,13 +104,29 @@ class MainActivity : AppCompatActivity() {
 
         // Enable foreground dispatch
         try {
-            nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, techList)
-            Log.d(TAG, "NFC Foreground dispatch enabled")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error enabling NFC foreground dispatch", e)
-            runOnUiThread {
-                statusTextView.text = "Error enabling NFC"
+            nfcAdapter?.let { adapter ->
+                if (adapter.isEnabled) {
+                    val intentFilters = arrayOf(
+                        IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED),
+                        IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED),
+                        IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED)
+                    )
+                    
+                    adapter.enableForegroundDispatch(this, pendingIntent, intentFilters, techList)
+                    Log.d(TAG, "NFC Foreground dispatch enabled")
+                    updateUIState(UIState.READY)
+                } else {
+                    Log.e(TAG, "NFC is disabled")
+                    updateUIState(UIState.ERROR, "NFC is disabled. Please enable it in settings.")
+                }
+            } ?: run {
+                Log.e(TAG, "NFC is not available on this device")
+                updateUIState(UIState.ERROR, "NFC is not available on this device")
             }
+        } catch (e: Exception) {
+            val errorMsg = "Error enabling NFC: ${e.message}"
+            Log.e(TAG, errorMsg, e)
+            updateUIState(UIState.ERROR, errorMsg)
         }
     }
 
@@ -102,36 +144,76 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        if (isReading) return // Prevent multiple reads at once
+        if (isReading) {
+            Log.d(TAG, "Already reading a tag, ignoring new intent")
+            return // Prevent multiple reads at once
+        }
         
         Log.d(TAG, "New intent received: ${intent.action}")
         
-        if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED ||
-            intent.action == NfcAdapter.ACTION_TECH_DISCOVERED ||
-            intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED
-        ) {
+        // Log all extras for debugging
+        intent.extras?.keySet()?.forEach { key ->
+            Log.d(TAG, "Intent extra - $key: ${intent.extras?.get(key)}")
+        }
+        
+        val validActions = arrayOf(
+            NfcAdapter.ACTION_TAG_DISCOVERED,
+            NfcAdapter.ACTION_TECH_DISCOVERED,
+            NfcAdapter.ACTION_NDEF_DISCOVERED
+        )
+        
+        if (validActions.contains(intent.action)) {
             isReading = true
             updateUIState(UIState.READING)
             
             try {
                 // Get the tag from the intent
-                val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+                val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+                }
+                
                 if (tag != null) {
-                    Log.d(TAG, "Tag discovered: ${bytesToHexString(tag.id)}")
+                    Log.d(TAG, "Tag discovered - ID: ${bytesToHexString(tag.id)}")
+                    Log.d(TAG, "Tag tech list: ${tag.techList.joinToString()}")
                     
-                    // Simulate reading delay for better UX
+                    // Process the tag with a small delay for better UX
                     nfcContentTextView.postDelayed({
                         try {
-                            // Convert the tag ID to a hex string
-                            val tagId = bytesToHexString(tag.id)
-                            val tagInfo = """
-                                Tag ID: $tagId
-                                Tech List: ${tag.techList.joinToString("\n    ", "\n    ")}
+                            try {
+                                // Convert the tag ID to a hex string
+                                val tagId = bytesToHexString(tag.id)
                                 
-                                Raw ID: ${tag.id.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }}
-                                """.trimIndent()
-                            
-                            updateUIState(UIState.READ_SUCCESS, tagInfo)
+                                // Get detailed tech info
+                                val techDetails = StringBuilder()
+                                tag.techList.forEach { tech ->
+                                    techDetails.append("\n    - $tech")
+                                }
+                                
+                                // Build tag information
+                                val tagInfo = """
+                                    === Tag Detected ===
+                                    ID: $tagId
+                                    
+                                    === Technical Details ===
+                                    Raw ID: ${tag.id.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }}
+                                    
+                                    === Supported Technologies ===${techDetails}
+                                    
+                                    === Actions ===
+                                    - Tap another tag to scan
+                                    - Pull down to refresh
+                                    """.trimIndent()
+                                
+                                Log.d(TAG, "Tag processed successfully")
+                                updateUIState(UIState.READ_SUCCESS, tagInfo)
+                                
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error building tag info", e)
+                                updateUIState(UIState.ERROR, "Error reading tag data: ${e.localizedMessage}")
+                            }
                             
                         } catch (e: Exception) {
                             Log.e(TAG, "Error processing tag", e)
@@ -226,6 +308,45 @@ class MainActivity : AppCompatActivity() {
                     }, 3000)
                 }
             }
+        }
+    }
+    
+    private fun showNfcDebugInfo() {
+        val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        val debugInfo = """
+            === NFC Debug Information ===
+            
+            NFC Adapter: ${nfcAdapter?.let { "Available" } ?: "Not available"}
+            NFC Enabled: ${nfcAdapter?.isEnabled ?: false}
+            
+            === Device Information ===
+            Model: ${android.os.Build.MODEL}
+            Manufacturer: ${android.os.Build.MANUFACTURER}
+            Android Version: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})
+            
+            === App Configuration ===
+            NFC Permissions: ${checkSelfPermission(android.Manifest.permission.NFC) == android.content.pm.PackageManager.PERMISSION_GRANTED}
+            Foreground Dispatch: ${nfcAdapter?.let { !isDestroyed && !isFinishing } ?: false}
+            
+            === Debug Actions ===
+            1. Ensure NFC is enabled in device settings
+            2. Try holding the tag near different parts of the device
+            3. Make sure the screen is on and unlocked
+            4. Restart the device if issues persist
+        """.trimIndent()
+        
+        updateUIState(UIState.READ_SUCCESS, debugInfo)
+        
+        // Test NFC functionality
+        nfcAdapter?.let { adapter ->
+            if (adapter.isEnabled) {
+                Toast.makeText(this, "NFC is enabled and ready", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "NFC is disabled", Toast.LENGTH_LONG).show()
+                startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+            }
+        } ?: run {
+            Toast.makeText(this, "NFC is not available on this device", Toast.LENGTH_LONG).show()
         }
     }
     
