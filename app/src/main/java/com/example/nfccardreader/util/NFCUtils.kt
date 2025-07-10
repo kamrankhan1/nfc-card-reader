@@ -10,8 +10,6 @@ import android.nfc.Tag
 import android.nfc.tech.*
 import android.os.Build
 import android.util.Log
-import com.example.nfccardreader.NFCReaderApp
-import com.example.nfccardreader.NFCReaderApp.Companion.TAG
 
 /**
  * Utility class for handling NFC operations
