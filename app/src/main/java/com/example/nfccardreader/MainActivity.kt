@@ -94,22 +94,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun bytesToHexString(src: ByteArray): String {
         val stringBuilder = StringBuilder("0x")
-        if (src.isNotEmpty()) {
-            val b = src[0] and 0xFF.toByte()
-            var hex = Integer.toHexString(b.toInt() and 0xFF)
-            if (hex.length < 2) {
-                stringBuilder.append('0')
-            }
-            stringBuilder.append(hex)
-            
-            for (i in 1 until src.size) {
-                val b = src[i] and 0xFF.toByte()
-                hex = Integer.toHexString(b.toInt() and 0xFF)
-                if (hex.length < 2) {
-                    stringBuilder.append('0')
-                }
-                stringBuilder.append(hex)
-            }
+        for (b in src) {
+            // Convert byte to unsigned int and format as hex
+            stringBuilder.append("%02x".format(b.toInt() and 0xff))
         }
         return stringBuilder.toString()
     }
