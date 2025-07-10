@@ -373,19 +373,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    private fun bytesToHexString(src: ByteArray): String {
-        val stringBuilder = StringBuilder("0x")
-        if (src.isEmpty()) {
-            return "0x00"
-        }
-        val buffer = CharArray(2)
-        for (b in src) {
-            buffer[0] = "0123456789ABCDEF"[b.toInt() shr 4 and 0x0F]
-            buffer[1] = "0123456789ABCDEF"[b.toInt() and 0x0F]
-            stringBuilder.append(buffer)
-        }
-        return stringBuilder.toString()
-    }
+
     
     private fun checkAndRequestPermissions() {
         if (checkSelfPermission(android.Manifest.permission.NFC) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
