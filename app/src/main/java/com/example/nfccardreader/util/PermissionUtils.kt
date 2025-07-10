@@ -99,7 +99,8 @@ object PermissionUtils {
             onResult(allGranted)
         }
         
-        launcher.launch(permissions)
+        // Convert Array<out String> to Array<String> for compatibility
+        launcher.launch(permissions.toList().toTypedArray())
     }
     
     /**

@@ -159,7 +159,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: SecurityException) {
                 Log.e(TAG, "Security exception while processing tag", e)
                 runOnUiThread {
-                    showError(getString(R.string.error_security_permission))
+                    showError("Security permission error. Please check NFC permissions in app settings.")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing tag", e)
@@ -222,10 +222,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 
                 === ${getString(R.string.debug_device_info)} ===
-                ${getString(R.string.debug_tag_type)}: ${nfcAdapter?.let { NFCUtils.getTagType(it) } ?: "N/A"}
-                ${getString(R.string.debug_tag_tech)}: ${
-                    nfcAdapter?.let { NFCUtils.getTagTechList(it).joinToString(", ") } ?: "N/A"
-                }
+                NFC Status: ${if (nfcAdapter?.isEnabled == true) "Enabled" else "Disabled"}
                 
                 === ${getString(R.string.debug_app_info)} ===
                 ${getString(R.string.app_name)} v${packageManager.getPackageInfo(packageName, 0).versionName}

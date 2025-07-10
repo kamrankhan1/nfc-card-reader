@@ -17,6 +17,7 @@ import com.example.nfccardreader.NFCReaderApp.Companion.TAG
  * Utility class for handling NFC operations
  */
 object NFCUtils {
+    private const val TAG = "NFCUtils"
     
     // NFC tech lists to support various tag types
     private val TECH_LISTS = arrayOf(
