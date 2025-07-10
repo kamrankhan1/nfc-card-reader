@@ -104,16 +104,30 @@
         app:layout_constraintVertical_bias="0.1" />
         
     <Button
+        android:id="@+id/readCardButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/read_nfc"
+        android:backgroundTint="@color/purple_500"
+        android:textColor="@android:color/white"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/helpTextView" />
+        
+    <Button
         android:id="@+id/debugButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
-        android:text="Debug NFC"
+        android:text="@string/debug_nfc"
         android:backgroundTint="@color/teal_700"
         android:textColor="@android:color/white"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/helpTextView"
+        app:layout_constraintTop_toBottomOf="@id/readCardButton"
         app:layout_constraintBottom_toBottomOf="parent"
         android:layout_marginBottom="16dp" />
 

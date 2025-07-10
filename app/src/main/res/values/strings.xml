@@ -8,4 +8,6 @@
     <string name="nfc_disabled">NFC is disabled. Please enable it in settings</string>
     <string name="nfc_error">Error reading NFC tag</string>
     <string name="help_text">Hold your device near an NFC tag to read its information</string>
+    <string name="read_nfc">Read NFC Tag</string>
+    <string name="debug_nfc">Debug NFC</string>
 </resources>

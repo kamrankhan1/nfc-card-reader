@@ -65,6 +65,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.readCardButton).setOnClickListener {
             startReading()
         }
+        
+        // Set up debug button
+        findViewById<View>(R.id.debugButton).setOnClickListener {
+            showNfcDebugInfo()
+        }
 
         // Set initial UI state
         updateUIState(UIState.READY)
@@ -366,6 +371,20 @@ class MainActivity : AppCompatActivity() {
         } ?: run {
             updateUIState(UIState.ERROR, "NFC is not available on this device")
         }
+    }
+    
+    private fun bytesToHexString(src: ByteArray): String {
+        val stringBuilder = StringBuilder("0x")
+        if (src.isEmpty()) {
+            return "0x00"
+        }
+        val buffer = CharArray(2)
+        for (b in src) {
+            buffer[0] = "0123456789ABCDEF"[b.toInt() shr 4 and 0x0F]
+            buffer[1] = "0123456789ABCDEF"[b.toInt() and 0x0F]
+            stringBuilder.append(buffer)
+        }
+        return stringBuilder.toString()
     }
     
     private fun checkAndRequestPermissions() {
