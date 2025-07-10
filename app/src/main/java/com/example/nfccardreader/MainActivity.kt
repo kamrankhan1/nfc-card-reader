@@ -421,12 +421,27 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
             PERMISSION_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    // Permission was granted, initialize NFC
+                var allPermissionsGranted = true
+                var nfcPermissionGranted = false
+                
+                // Check each permission result
+                for (i in permissions.indices) {
+                    if (grantResults[i] != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        allPermissionsGranted = false
+                        if (permissions[i] == android.Manifest.permission.NFC) {
+                            updateUIState(UIState.ERROR, "NFC permission is required to read cards")
+                            return@onRequestPermissionsResult
+                        }
+                    } else if (permissions[i] == android.Manifest.permission.NFC) {
+                        nfcPermissionGranted = true
+                    }
+                }
+                
+                if (allPermissionsGranted || nfcPermissionGranted) {
+                    // All required permissions granted, initialize NFC
                     initializeNfc()
                 } else {
-                    // Permission denied
-                    updateUIState(UIState.ERROR, "NFC permission is required to read cards")
+                    updateUIState(UIState.ERROR, "Required permissions were not granted")
                 }
             }
         }
@@ -441,8 +456,18 @@ class MainActivity : AppCompatActivity() {
         
         if (!nfcAdapter!!.isEnabled) {
             updateUIState(UIState.ERROR, "Please enable NFC in Settings")
-            // Optionally open NFC settings
-            startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+            // Open NFC settings with the correct intent
+            val intent = when {
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.JELLY_BEAN_MR2 -> {
+                    // For newer devices, use the NFC settings intent
+                    Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
+                }
+                else -> {
+                    // Fallback for older devices
+                    Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)
+                }
+            }
+            startActivity(intent)
         } else {
             updateUIState(UIState.READY)
         }
