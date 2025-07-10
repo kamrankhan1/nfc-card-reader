@@ -61,80 +61,126 @@ class MainActivity : AppCompatActivity() {
     ) { /* No action needed on return */ }
     
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        
-        log("=== App Started ===")
-        log("Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-
-        // Initialize views
-        initializeViews()
-        
-        // Initialize NFC adapter
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
-        
-        log("NFC Adapter initialized: ${nfcAdapter != null}")
-        log("NFC Enabled: ${nfcAdapter?.isEnabled ?: false}")
-        
-        // Create a PendingIntent for NFC foreground dispatch
-        val intent = Intent(this, javaClass).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        
-        pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            )
-        } else {
-            PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT
-            )
-        }
-        
-        log("PendingIntent created: ${pendingIntent != null}")
-        
-        // Check and request permissions
-        checkAndRequestPermissions()
-        
-        // Handle NFC intent if the app was launched by scanning an NFC tag
-        if (intent?.action in arrayOf(
-                NfcAdapter.ACTION_NDEF_DISCOVERED,
-                NfcAdapter.ACTION_TAG_DISCOVERED,
-                NfcAdapter.ACTION_TECH_DISCOVERED
-            ) || NfcAdapter.ACTION_TAG_DISCOVERED == intent?.action
-        ) {
-            log("Launch intent contains NFC data")
-            handleIntent(intent)
-        } else {
-            log("No NFC data in launch intent")
+        try {
+            super.onCreate(savedInstanceState)
+            
+            // Set content view first
+            try {
+                setContentView(R.layout.activity_main)
+            } catch (e: Exception) {
+                // If layout fails, show a basic error and exit
+                showFatalError("Failed to load app UI")
+                return
+            }
+            
+            // Initialize basic UI components
+            try {
+                initializeBasicViews()
+                log("Basic views initialized")
+            } catch (e: Exception) {
+                showError("Error initializing UI")
+                // Continue anyway as some features might still work
+            }
+            
+            // Initialize NFC components
+            try {
+                initializeNfc()
+            } catch (e: Exception) {
+                showError("Error initializing NFC")
+                // Continue without NFC functionality
+            }
+            
+            // Check and request permissions
+            try {
+                checkAndRequestPermissions()
+            } catch (e: Exception) {
+                showError("Error checking permissions")
+            }
+            
+        } catch (e: Exception) {
+            // Last resort error handling
+            showFatalError("App encountered an error")
         }
     }
     
-    
-    
-    private fun initializeViews() {
-        statusTextView = findViewById(R.id.statusTextView)
-        nfcContentTextView = findViewById(R.id.nfcContentTextView)
-        logTextView = findViewById(R.id.logTextView)
-        debugButton = findViewById(R.id.debugButton)
-        clearLogsButton = findViewById(R.id.clearLogsButton)
-        
-        // Set up debug button
-        debugButton.setOnClickListener {
-            showNfcDebugInfo()
+    private fun initializeBasicViews() {
+        try {
+            statusTextView = findViewById(R.id.statusTextView) ?: throw IllegalStateException("statusTextView not found")
+            nfcContentTextView = findViewById(R.id.nfcContentTextView) ?: TextView(this)
+            logTextView = findViewById(R.id.logTextView) ?: TextView(this)
+            debugButton = findViewById(R.id.debugButton) ?: Button(this)
+            clearLogsButton = findViewById(R.id.clearLogsButton) ?: Button(this)
+            
+            // Set up button click listeners with null safety
+            debugButton.setOnClickListener { showNfcDebugInfo() }
+            clearLogsButton.setOnClickListener { clearLogs() }
+            
+            // Set initial status
+            updateStatus("Initializing...")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in initializeBasicViews", e)
+            throw e
         }
-        
-        // Set up clear logs button
-        clearLogsButton.setOnClickListener {
+    }
+    
+    private fun initializeNfc() {
+        try {
+            nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+            log("NFC Supported: ${nfcAdapter != null}")
+            
+            if (nfcAdapter == null) {
+                updateStatus("NFC not available")
+                return
+            }
+            
+            // Set up pending intent for NFC
+            val intent = Intent(this, javaClass).apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            
+            pendingIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                PendingIntent.getActivity(
+                    this, 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                )
+            } else {
+                PendingIntent.getActivity(
+                    this, 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            }
+            
+            log("NFC initialized")
+            updateStatus("Ready to scan")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing NFC", e)
+            updateStatus("NFC initialization failed")
+            throw e
+        }
+    }
+    
+    private fun clearLogs() {
+        try {
             logBuffer.clear()
             logTextView.text = ""
             log("Logs cleared")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing logs", e)
         }
-        
-        // Set initial status
-        updateStatus(getString(R.string.ready_to_scan))
+    }
+    
+    private fun showFatalError(message: String) {
+        // Show a toast and log the error
+        try {
+            Toast.makeText(this, "Fatal Error: $message - Please restart the app", 
+                Toast.LENGTH_LONG).show()
+            Log.e(TAG, "FATAL: $message")
+        } catch (e: Exception) {
+            // If even showing toast fails, just log it
+            Log.e(TAG, "FATAL: $message (Also failed to show toast: ${e.message})")
+        }
     }
     
     private fun checkAndRequestPermissions() {
@@ -472,30 +518,47 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun log(message: String) {
-        // Add timestamp
-        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
-            .format(java.util.Date())
-        val logMessage = "$timestamp: $message\n"
-        
-        // Add to log buffer
-        logBuffer.append(logMessage)
-        
-        // Limit log size
-        val lines = logBuffer.split("\n")
-        if (lines.size > MAX_LOG_LINES) {
-            val start = lines.size - MAX_LOG_LINES
-            logBuffer.clear()
-            logBuffer.append(lines.subList(start, lines.size).joinToString("\n"))
-        }
-        
-        // Update UI on main thread
-        runOnUiThread {
-            logTextView.append(logMessage)
-            // Auto-scroll to bottom
-            val scrollView = logTextView.parent as? android.widget.ScrollView
-            scrollView?.post {
-                scrollView.fullScroll(android.view.View.FOCUS_DOWN)
+        try {
+            // Add timestamp
+            val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+                .format(java.util.Date())
+            val logMessage = "$timestamp: $message\n"
+            
+            // Log to system log
+            Log.d(TAG, message)
+            
+            // Add to log buffer
+            logBuffer.append(logMessage)
+            
+            // Limit log size
+            val lines = logBuffer.split("\n")
+            if (lines.size > MAX_LOG_LINES) {
+                val start = lines.size - MAX_LOG_LINES
+                logBuffer.clear()
+                logBuffer.append(lines.subList(start, lines.size).joinToString("\n"))
             }
+            
+            // Update UI on main thread
+            runOnUiThread {
+                try {
+                    if (::logTextView.isInitialized) {
+                        logTextView.append(logMessage)
+                        // Auto-scroll to bottom
+                        val scrollView = logTextView.parent as? android.widget.ScrollView
+                        scrollView?.post {
+                            try {
+                                scrollView.fullScroll(android.view.View.FOCUS_DOWN)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error scrolling log view", e)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error updating log UI", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in log function", e)
         }
     }
     
