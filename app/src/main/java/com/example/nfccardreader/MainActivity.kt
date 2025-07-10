@@ -14,6 +14,7 @@ import android.widget.Toast
 import android.widget.Button
 import android.content.pm.PackageManager
 import android.content.IntentFilter
+import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
@@ -62,7 +63,7 @@ class MainActivity : AppCompatActivity() {
 
         // Set click listeners
         findViewById<View>(R.id.readCardButton).setOnClickListener {
-            startNfcReading()
+            startReading()
         }
 
         // Set initial UI state
@@ -350,6 +351,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    private fun startReading() {
+        // Start NFC reading process
+        updateUIState(UIState.READING)
+        // Show a message to the user
+        Toast.makeText(this, "Hold your NFC card near the device", Toast.LENGTH_SHORT).show()
+        
+        // Ensure NFC is enabled
+        nfcAdapter?.let { adapter ->
+            if (!adapter.isEnabled) {
+                updateUIState(UIState.ERROR, "Please enable NFC in settings")
+                startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+            }
+        } ?: run {
+            updateUIState(UIState.ERROR, "NFC is not available on this device")
+        }
+    }
+    
     private fun checkAndRequestPermissions() {
         if (checkSelfPermission(android.Manifest.permission.NFC) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             // On Android 6.0+, we need to request the NFC permission
@@ -440,21 +458,6 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val intent = Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
                         if (intent.resolveActivity(packageManager) != null) {
-                            startActivity(intent)
-                        } else {
-                            // Fallback to wireless settings
-                            startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error opening NFC settings", e)
-                        Toast.makeText(this, "Could not open NFC settings", Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    updateUIState(UIState.ERROR, "NFC is disabled. Please enable it in settings.")
-                    try {
-                        startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error opening NFC settings", e)
                         startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
                     }
                 }
