@@ -13,6 +13,7 @@ import android.widget.ProgressBar
 import android.widget.Toast
 import android.widget.Button
 import android.content.pm.PackageManager
+import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.appcompat.app.AppCompatActivity
