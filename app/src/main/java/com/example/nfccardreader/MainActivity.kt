@@ -329,13 +329,19 @@ class MainActivity : AppCompatActivity() {
                         contentScrollView.scrollTo(0, 0)
                     }
                     
-                    // Vibrate for feedback
-                    val vibrator = getSystemService(VIBRATOR_SERVICE) as android.os.Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(100)
+                    // Vibrate for feedback (only if we have permission)
+                    if (checkSelfPermission(android.Manifest.permission.VIBRATE) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        try {
+                            val vibrator = getSystemService(VIBRATOR_SERVICE) as android.os.Vibrator
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                vibrator.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                            } else {
+                                @Suppress("DEPRECATION")
+                                vibrator.vibrate(100)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error with vibration: ${e.message}")
+                        }
                     }
                 }
                 UIState.ERROR -> {
@@ -376,11 +382,25 @@ class MainActivity : AppCompatActivity() {
 
     
     private fun checkAndRequestPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+        
+        // Check NFC permission
         if (checkSelfPermission(android.Manifest.permission.NFC) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            // On Android 6.0+, we need to request the NFC permission
+            permissionsToRequest.add(android.Manifest.permission.NFC)
+        }
+        
+        // Check VIBRATE permission (only needed for Android 12+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            if (checkSelfPermission(android.Manifest.permission.VIBRATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(android.Manifest.permission.VIBRATE)
+            }
+        }
+        
+        if (permissionsToRequest.isNotEmpty()) {
+            // Request missing permissions
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                 requestPermissions(
-                    arrayOf(android.Manifest.permission.NFC),
+                    permissionsToRequest.toTypedArray(),
                     PERMISSION_REQUEST_CODE
                 )
             } else {
@@ -388,7 +408,7 @@ class MainActivity : AppCompatActivity() {
                 initializeNfc()
             }
         } else {
-            // Permissions already granted, initialize NFC
+            // All permissions already granted, initialize NFC
             initializeNfc()
         }
     }
