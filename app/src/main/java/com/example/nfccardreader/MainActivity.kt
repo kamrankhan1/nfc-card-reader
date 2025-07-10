@@ -42,7 +42,13 @@ class MainActivity : AppCompatActivity() {
     // UI Components
     private lateinit var statusTextView: TextView
     private lateinit var nfcContentTextView: TextView
+    private lateinit var logTextView: TextView
     private lateinit var debugButton: Button
+    private lateinit var clearLogsButton: Button
+    
+    // Log buffer
+    private val logBuffer = StringBuilder()
+    private val MAX_LOG_LINES = 100
     
     // NFC Components
     private var nfcAdapter: NfcAdapter? = null
@@ -85,11 +91,20 @@ class MainActivity : AppCompatActivity() {
     private fun initializeViews() {
         statusTextView = findViewById(R.id.statusTextView)
         nfcContentTextView = findViewById(R.id.nfcContentTextView)
+        logTextView = findViewById(R.id.logTextView)
         debugButton = findViewById(R.id.debugButton)
+        clearLogsButton = findViewById(R.id.clearLogsButton)
         
         // Set up debug button
         debugButton.setOnClickListener {
             showNfcDebugInfo()
+        }
+        
+        // Set up clear logs button
+        clearLogsButton.setOnClickListener {
+            logBuffer.clear()
+            logTextView.text = ""
+            log("Logs cleared")
         }
         
         // Set initial status
@@ -132,6 +147,10 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun processTag(tag: Tag) {
+        val tagId = tag.id.joinToString("") { "%02x".format(it) }
+        log("Processing tag: $tagId")
+        log("Tag tech list: ${tag.techList.joinToString()}")
+        Log.d(TAG, "processTag called with tag: $tagId")
         if (isReading) {
             Log.d(TAG, "Already reading a tag, ignoring new tag")
             return
@@ -231,20 +250,31 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun handleIntent(intent: Intent) {
+        Log.d(TAG, "handleIntent called with action: ${intent.action}")
         if (intent.action in arrayOf(
                 NfcAdapter.ACTION_NDEF_DISCOVERED,
                 NfcAdapter.ACTION_TAG_DISCOVERED,
                 NfcAdapter.ACTION_TECH_DISCOVERED
             )
         ) {
+            Log.d(TAG, "NFC intent received")
             val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
-            tag?.let { processTag(it) }
+            if (tag != null) {
+                Log.d(TAG, "Tag detected with ID: ${tag.id.joinToString("") { "%02x".format(it) }}")
+                Log.d(TAG, "Tag tech list: ${tag.techList.joinToString()}")
+                processTag(tag)
+            } else {
+                Log.e(TAG, "Received NFC intent but tag is null")
+            }
         }
     }
     
     private fun enableNfcForegroundDispatch() {
+        log("Enabling NFC foreground dispatch")
+        Log.d(TAG, "enableNfcForegroundDispatch called")
         nfcAdapter?.let { adapter ->
             try {
+                Log.d(TAG, "Setting up NFC foreground dispatch")
                 val intent = Intent(this, javaClass).apply {
                     addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                 }
@@ -297,11 +327,18 @@ class MainActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
+        log("App resumed")
+        Log.d(TAG, "onResume: Enabling NFC foreground dispatch")
         enableNfcForegroundDispatch()
+        val nfcEnabled = nfcAdapter?.isEnabled ?: false
+        log("NFC adapter state - isEnabled: $nfcEnabled")
+        Log.d(TAG, "NFC adapter state - isEnabled: $nfcEnabled")
     }
     
     override fun onPause() {
         super.onPause()
+        log("App paused")
+        Log.d(TAG, "onPause: Disabling NFC foreground dispatch")
         disableNfcForegroundDispatch()
     }
     
@@ -334,13 +371,43 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
+    private fun log(message: String) {
+        // Add timestamp
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        val logMessage = "$timestamp: $message\n"
+        
+        // Add to log buffer
+        logBuffer.append(logMessage)
+        
+        // Limit log size
+        val lines = logBuffer.split("\n")
+        if (lines.size > MAX_LOG_LINES) {
+            val start = lines.size - MAX_LOG_LINES
+            logBuffer.clear()
+            logBuffer.append(lines.subList(start, lines.size).joinToString("\n"))
+        }
+        
+        // Update UI on main thread
+        runOnUiThread {
+            logTextView.append(logMessage)
+            // Auto-scroll to bottom
+            val scrollView = logTextView.parent as? android.widget.ScrollView
+            scrollView?.post {
+                scrollView.fullScroll(android.view.View.FOCUS_DOWN)
+            }
+        }
+    }
+    
     private fun updateStatus(status: String) {
+        log("Status: $status")
         runOnUiThread {
             statusTextView.text = status
         }
     }
     
     private fun showError(message: String) {
+        log("ERROR: $message")
         runOnUiThread {
             statusTextView.text = getString(R.string.status_error)
             nfcContentTextView.text = message

@@ -19,31 +19,94 @@
         android:background="#e3f2fd"
         android:layout_marginBottom="16dp"/>
 
-    <ScrollView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#f5f5f5"
-        android:padding="8dp">
-        
+        android:orientation="vertical">
+
         <TextView
-            android:id="@+id/nfcContentTextView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textColor="#212121"
-            android:fontFamily="monospace"
-            android:lineSpacingExtra="4dp"/>
+            android:text="NFC Tag Content"
+            android:textStyle="bold"
+            android:padding="8dp"/>
             
-    </ScrollView>
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#f5f5f5"
+            android:padding="8dp">
+            
+            <TextView
+                android:id="@+id/nfcContentTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="#212121"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="4dp"/>
+                
+        </ScrollView>
 
-    <Button
-        android:id="@+id/debugButton"
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#e0e0e0"
+            android:layout_marginVertical="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Debug Logs"
+            android:textStyle="bold"
+            android:padding="8dp"/>
+            
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:background="#f0f0f0"
+            android:padding="8dp">
+            
+            <TextView
+                android:id="@+id/logTextView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="#424242"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="2dp"/>
+                
+        </ScrollView>
+    </LinearLayout>
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Show Debug Info"
-        android:layout_marginTop="16dp"
-        android:backgroundTint="#1976D2"
-        android:textColor="#ffffff"/>
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/clearLogsButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Clear Logs"
+            android:layout_marginEnd="4dp"
+            android:backgroundTint="#757575"
+            android:textColor="#ffffff"/>
+            
+        <Button
+            android:id="@+id/debugButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Debug Info"
+            android:layout_marginStart="4dp"
+            android:backgroundTint="#1976D2"
+            android:textColor="#ffffff"/>
+    </LinearLayout>
 
 </LinearLayout>
