@@ -332,7 +332,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         
-        if (!nfcAdapter?.isEnabled == true) {
+        if (nfcAdapter?.isEnabled != true) {
             log("ERROR: NFC is disabled")
             showNfcDisabledAlert()
             return
