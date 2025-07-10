@@ -70,71 +70,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        // Handle NFC intent when the app is already running
-        if (intent?.action in listOf(
-                NfcAdapter.ACTION_NDEF_DISCOVERED,
-                NfcAdapter.ACTION_TAG_DISCOVERED,
-                NfcAdapter.ACTION_TECH_DISCOVERED
-            )
-        ) {
-            intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)?.let { tag ->
-                processTag(tag)
-            }
-        }
-    }
     
-    override fun onResume() {
-        super.onResume()
-        // Enable foreground dispatch when activity is in the foreground
-        nfcAdapter?.let { adapter ->
-            val intent = Intent(this, javaClass).apply {
-                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            PendingIntent.FLAG_MUTABLE
-                        } else {
-                            0
-                        }
-            )
-            
-            try {
-                adapter.enableForegroundDispatch(
-                    this,
-                    pendingIntent,
-                    null,  // No intent filters
-                    arrayOf(
-                        arrayOf(
-                            "android.nfc.tech.Ndef",
-                            "android.nfc.tech.NdefFormatable",
-                            "android.nfc.tech.NfcA",
-                            "android.nfc.tech.IsoDep",
-                            "android.nfc.tech.MifareClassic",
-                            "android.nfc.tech.MifareUltralight"
-                        )
-                    )
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Error enabling NFC foreground dispatch", e)
-            }
-        }
-    }
-    
-    override fun onPause() {
-        super.onPause()
-        // Disable foreground dispatch when activity is paused
-        nfcAdapter?.let { adapter ->
-            try {
-                adapter.disableForegroundDispatch(this)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error disabling NFC foreground dispatch", e)
-            }
-        }
-    }
     
     private fun initializeViews() {
         statusTextView = findViewById(R.id.statusTextView)
@@ -181,44 +117,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    override fun onResume() {
-        super.onResume()
-        
-        // Enable foreground dispatch for NFC
-        nfcAdapter?.let { adapter ->
-            if (adapter.isEnabled) {
-                NFCUtils.enableForegroundDispatch(this)
-                updateStatus(getString(R.string.ready_to_scan))
-            } else {
-                showNfcDisabledAlert()
-            }
-        } ?: run {
-            showError(getString(R.string.nfc_not_supported))
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        NFCUtils.disableForegroundDispatch(this)
-    }
-
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        
-        // Check if this is an NFC intent
-        if (NfcAdapter.ACTION_TAG_DISCOVERED == intent?.action ||
-            NfcAdapter.ACTION_NDEF_DISCOVERED == intent?.action ||
-            NfcAdapter.ACTION_TECH_DISCOVERED == intent?.action
-        ) {
-            // Process the NFC tag
-            intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)?.let { tag ->
-                processTag(tag)
-            } ?: showError(getString(R.string.nfc_tag_read_failed))
-        }
-    }
-    }       
-
-
     private fun processTag(tag: Tag) {
         if (isReading) {
             Log.d(TAG, "Already reading a tag, ignoring new tag")
@@ -362,5 +260,3 @@ class MainActivity : AppCompatActivity() {
             ).show()
         }
     }
-}
-}
