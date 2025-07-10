@@ -12,6 +12,7 @@ import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.Toast
 import android.widget.Button
+import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.appcompat.app.AppCompatActivity
@@ -325,7 +326,7 @@ class MainActivity : AppCompatActivity() {
             Android Version: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})
             
             === App Configuration ===
-            NFC Permissions: ${checkSelfPermission(android.Manifest.permission.NFC) == android.content.pm.PackageManager.PERMISSION_GRANTED}
+            NFC Permissions: ${packageManager.hasSystemFeature(PackageManager.FEATURE_NFC)}
             Foreground Dispatch: ${nfcAdapter?.let { !isDestroyed && !isFinishing } ?: false}
             
             === Debug Actions ===
