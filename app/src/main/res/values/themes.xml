@@ -17,7 +17,7 @@
         
         <!-- Material 3 theming -->
         <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
-        <item name="materialCardViewStyle">@style/Widget.Material3.CardView</item>
+        <item name="materialCardViewStyle">@style/Widget.Material3.CardView.Filled</item>
         
         <!-- Customize your theme here. -->
         <item name="android:windowBackground">@color/white</item>
@@ -38,6 +38,9 @@
         <item name="textAppearanceHeadline3">@style/TextAppearance.Material3.HeadlineLarge</item>
         <item name="textAppearanceBody1">@style/TextAppearance.Material3.BodyMedium</item>
         <item name="textAppearanceBody2">@style/TextAppearance.Material3.BodySmall</item>
+        
+        <!-- CardView style -->
+        <item name="cardViewStyle">@style/Widget.Material3.CardView.Filled</item>
     </style>
     
     <!-- Dark theme variant -->
