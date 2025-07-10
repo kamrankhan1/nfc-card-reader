@@ -320,7 +320,6 @@ class MainActivity : AppCompatActivity() {
             Log.e(TAG, errorMsg)
             showError("Couldn't read tag data. Please try again.")
         }
-        }
     }
     
     private fun enableNfcForegroundDispatch() {
