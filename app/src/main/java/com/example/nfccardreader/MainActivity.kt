@@ -477,7 +477,10 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val intent = Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
                         if (intent.resolveActivity(packageManager) != null) {
-                        startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
+                            startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error opening NFC settings", e)
                     }
                 }
             } ?: run {
