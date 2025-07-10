@@ -14,6 +14,7 @@ import android.widget.Toast
 import android.widget.Button
 import android.content.pm.PackageManager
 import android.content.IntentFilter
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.appcompat.app.AppCompatActivity
@@ -28,31 +29,42 @@ class MainActivity : AppCompatActivity() {
     private lateinit var nfcIcon: ImageView
     private lateinit var contentScrollView: android.widget.ScrollView
     private var isReading = false
-    private lateinit var pendingIntent: PendingIntent
+    private var pendingIntent: PendingIntent? = null
     private val techList = arrayOf(
         arrayOf(android.nfc.tech.Ndef::class.java.name),
         arrayOf(android.nfc.tech.NdefFormatable::class.java.name),
+        arrayOf(android.nfc.tech.MifareClassic::class.java.name),
+        arrayOf(android.nfc.tech.MifareUltralight::class.java.name),
         arrayOf(android.nfc.tech.NfcA::class.java.name),
         arrayOf(android.nfc.tech.NfcB::class.java.name),
         arrayOf(android.nfc.tech.NfcF::class.java.name),
         arrayOf(android.nfc.tech.NfcV::class.java.name),
         arrayOf(android.nfc.tech.IsoDep::class.java.name),
-        arrayOf(android.nfc.tech.MifareClassic::class.java.name),
-        arrayOf(android.nfc.tech.MifareUltralight::class.java.name),
         arrayOf(android.nfc.tech.NfcBarcode::class.java.name)
     )
+
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 1001
+        private const val TAG = "NFCDemo"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Initialize views
         statusTextView = findViewById(R.id.statusTextView)
         nfcContentTextView = findViewById(R.id.nfcContentTextView)
         readingStatusTextView = findViewById(R.id.readingStatusTextView)
         readingProgressBar = findViewById(R.id.readingProgressBar)
         nfcIcon = findViewById(R.id.nfcIcon)
         contentScrollView = findViewById(R.id.contentScrollView)
-        
+
+        // Set click listeners
+        findViewById<View>(R.id.readCardButton).setOnClickListener {
+            startNfcReading()
+        }
+
         // Set initial UI state
         updateUIState(UIState.READY)
 
@@ -60,6 +72,9 @@ class MainActivity : AppCompatActivity() {
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
         
         Log.d(TAG, "NFC Adapter: $nfcAdapter")
+        
+        // Check and request NFC permissions
+        checkAndRequestPermissions()
         
         if (nfcAdapter == null) {
             // NFC is not supported on this device
@@ -332,6 +347,59 @@ class MainActivity : AppCompatActivity() {
                     }, 3000)
                 }
             }
+        }
+    }
+    
+    private fun checkAndRequestPermissions() {
+        if (checkSelfPermission(android.Manifest.permission.NFC) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            // On Android 6.0+, we need to request the NFC permission
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.NFC),
+                    PERMISSION_REQUEST_CODE
+                )
+            } else {
+                // For older versions, just initialize NFC
+                initializeNfc()
+            }
+        } else {
+            // Permissions already granted, initialize NFC
+            initializeNfc()
+        }
+    }
+    
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    // Permission was granted, initialize NFC
+                    initializeNfc()
+                } else {
+                    // Permission denied
+                    updateUIState(UIState.ERROR, "NFC permission is required to read cards")
+                }
+            }
+        }
+    }
+    
+    private fun initializeNfc() {
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        if (nfcAdapter == null) {
+            updateUIState(UIState.ERROR, "This device doesn't support NFC")
+            return
+        }
+        
+        if (!nfcAdapter!!.isEnabled) {
+            updateUIState(UIState.ERROR, "Please enable NFC in Settings")
+            // Optionally open NFC settings
+            startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+        } else {
+            updateUIState(UIState.READY)
         }
     }
     
