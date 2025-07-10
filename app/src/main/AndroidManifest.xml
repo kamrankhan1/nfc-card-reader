@@ -4,6 +4,7 @@
 
     <!-- NFC Permissions -->
     <uses-permission android:name="android.permission.NFC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     
     <!-- Required NFC features -->
     <uses-feature
@@ -49,29 +50,20 @@
             </intent-filter>
             
             <intent-filter>
-                <action android:name="android.nfc.action.TAG_DISCOVERED" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-            
-            <!-- Handle NDEF_DISCOVERED -->
-            <intent-filter>
-                <action android:name="android.nfc.action.NDEF_DISCOVERED" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="*/*" />
-            </intent-filter>
-            
-            <!-- Handle TECH_DISCOVERED -->
-            <intent-filter>
                 <action android:name="android.nfc.action.TECH_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            
+            <!-- NFC tech list -->
+            <meta-data
+                android:name="android.nfc.action.TECH_DISCOVERED"
+                android:resource="@xml/nfc_tech_filter" />
             
             <!-- Handle TAG_DISCOVERED -->
             <intent-filter>
                 <action android:name="android.nfc.action.TAG_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-            
             <!-- Add NFC tech list -->
             <meta-data
                 android:name="android.nfc.action.TECH_DISCOVERED"

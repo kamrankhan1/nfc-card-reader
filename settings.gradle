@@ -17,8 +17,5 @@ dependencyResolutionManagement {
     }
 }
 
-// Enable Gradle's version catalog support
-enableFeaturePreview('VERSION_CATALOGS')
-
 rootProject.name = 'NFC Card Reader'
 include ':app'
