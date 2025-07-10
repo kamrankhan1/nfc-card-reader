@@ -94,31 +94,48 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        Log.d(TAG, "onResume called")
         
-        // Create a generic PendingIntent that will be used to get the tag
-        val intent = Intent(this, javaClass).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-
-        // Enable foreground dispatch
         try {
+            // Create a generic PendingIntent that will be used to get the tag
+            val intent = Intent(this, javaClass).apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            pendingIntent = PendingIntent.getActivity(
+                this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+
+            // Enable foreground dispatch
             nfcAdapter?.let { adapter ->
                 if (adapter.isEnabled) {
-                    val intentFilters = arrayOf(
-                        IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED),
-                        IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED),
-                        IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED)
-                    )
-                    
-                    adapter.enableForegroundDispatch(this, pendingIntent, intentFilters, techList)
-                    Log.d(TAG, "NFC Foreground dispatch enabled")
-                    updateUIState(UIState.READY)
+                    try {
+                        val intentFilters = arrayOf(
+                            IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED).apply {
+                                addCategory(Intent.CATEGORY_DEFAULT)
+                            },
+                            IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED).apply {
+                                addCategory(Intent.CATEGORY_DEFAULT)
+                            },
+                            IntentFilter(NfcAdapter.ACTION_NDEF_DISCOVERED).apply {
+                                addCategory(Intent.CATEGORY_DEFAULT)
+                                addDataScheme("http")
+                                addDataScheme("https")
+                                addDataScheme("vnd.android.nfc")
+                                addDataScheme("vnd.android.nfc.ext")
+                                addDataType("*/*")
+                            }
+                        )
+                        
+                        adapter.enableForegroundDispatch(this, pendingIntent, intentFilters, techList)
+                        Log.d(TAG, "NFC Foreground dispatch enabled")
+                        updateUIState(UIState.READY)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error setting up NFC foreground dispatch", e)
+                        updateUIState(UIState.ERROR, "Error setting up NFC: ${e.localizedMessage}")
+                    }
                 } else {
-                    Log.e(TAG, "NFC is disabled")
+                    Log.w(TAG, "NFC is disabled")
                     updateUIState(UIState.ERROR, "NFC is disabled. Please enable it in settings.")
                 }
             } ?: run {
@@ -140,8 +157,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // This method is called when a new intent is received
-        // (when the user scans an NFC tag)
+        Log.d(TAG, "onNewIntent called with action: ${intent.action}")
+        
+        // Log all extras for debugging
+        intent.extras?.keySet()?.forEach { key ->
+            Log.d(TAG, "Intent extra - $key: ${intent.extras?.get(key)}")
+        }
+        
         handleIntent(intent)
     }
 
@@ -314,41 +336,66 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun showNfcDebugInfo() {
-        val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
-        val debugInfo = """
-            === NFC Debug Information ===
+        try {
+            val nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+            val debugInfo = """
+                === NFC Debug Information ===
+                
+                NFC Adapter: ${nfcAdapter?.let { "Available" } ?: "Not available"}
+                NFC Enabled: ${nfcAdapter?.isEnabled ?: false}
+                
+                === Device Information ===
+                Model: ${android.os.Build.MODEL}
+                Manufacturer: ${android.os.Build.MANUFACTURER}
+                Android Version: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})
+                
+                === App Configuration ===
+                NFC Hardware: ${packageManager.hasSystemFeature(PackageManager.FEATURE_NFC)}
+                NFC Host-based Card Emulation: ${packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)}
+                NFC Host Card Emulation: ${packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION_NFCF)}
+                
+                === Debug Actions ===
+                1. Ensure NFC is enabled in device settings
+                2. Try holding the tag near different parts of the device
+                3. Make sure the screen is on and unlocked
+                4. Restart the device if issues persist
+            """.trimIndent()
             
-            NFC Adapter: ${nfcAdapter?.let { "Available" } ?: "Not available"}
-            NFC Enabled: ${nfcAdapter?.isEnabled ?: false}
+            updateUIState(UIState.READ_SUCCESS, debugInfo)
             
-            === Device Information ===
-            Model: ${android.os.Build.MODEL}
-            Manufacturer: ${android.os.Build.MANUFACTURER}
-            Android Version: ${android.os.Build.VERSION.RELEASE} (SDK ${android.os.Build.VERSION.SDK_INT})
-            
-            === App Configuration ===
-            NFC Permissions: ${packageManager.hasSystemFeature(PackageManager.FEATURE_NFC)}
-            Foreground Dispatch: ${nfcAdapter?.let { !isDestroyed && !isFinishing } ?: false}
-            
-            === Debug Actions ===
-            1. Ensure NFC is enabled in device settings
-            2. Try holding the tag near different parts of the device
-            3. Make sure the screen is on and unlocked
-            4. Restart the device if issues persist
-        """.trimIndent()
-        
-        updateUIState(UIState.READ_SUCCESS, debugInfo)
-        
-        // Test NFC functionality
-        nfcAdapter?.let { adapter ->
-            if (adapter.isEnabled) {
-                Toast.makeText(this, "NFC is enabled and ready", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "NFC is disabled", Toast.LENGTH_LONG).show()
-                startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+            // Test NFC functionality
+            nfcAdapter?.let { adapter ->
+                if (adapter.isEnabled) {
+                    Toast.makeText(this, "NFC is enabled and ready", Toast.LENGTH_SHORT).show()
+                    
+                    // Show NFC settings if needed
+                    try {
+                        val intent = Intent(android.provider.Settings.ACTION_NFC_SETTINGS)
+                        if (intent.resolveActivity(packageManager) != null) {
+                            startActivity(intent)
+                        } else {
+                            // Fallback to wireless settings
+                            startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error opening NFC settings", e)
+                        Toast.makeText(this, "Could not open NFC settings", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    updateUIState(UIState.ERROR, "NFC is disabled. Please enable it in settings.")
+                    try {
+                        startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error opening NFC settings", e)
+                        startActivity(Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
+                    }
+                }
+            } ?: run {
+                updateUIState(UIState.ERROR, "NFC is not available on this device")
             }
-        } ?: run {
-            Toast.makeText(this, "NFC is not available on this device", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in showNfcDebugInfo", e)
+            updateUIState(UIState.ERROR, "Error checking NFC status: ${e.localizedMessage}")
         }
     }
     
