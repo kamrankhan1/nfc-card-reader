@@ -29,14 +29,12 @@ jobs:
 
     - name: Build with Gradle
       run: |
-        # Try to use the Gradle wrapper if it exists
-        if [ -f "./gradlew" ]; then
-          chmod +x gradlew
-          ./gradlew assembleDebug
-        else
-          # Fall back to using Gradle directly
-          gradle assembleDebug
+        # Generate Gradle wrapper if it doesn't exist
+        if [ ! -f "gradlew" ]; then
+          gradle wrapper
         fi
+        chmod +x gradlew
+        ./gradlew assembleDebug
       env:
         ORG_GRADLE_PROJECT_keystoreProperties: ${{ secrets.KEYSTORE_PROPERTIES }}
 
