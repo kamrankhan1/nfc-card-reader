@@ -1,13 +1,76 @@
 <resources>
+    <!-- App Name -->
     <string name="app_name">NFC Card Reader</string>
+    
+    <!-- NFC Related Strings -->
     <string name="nfc_icon_desc">NFC Icon</string>
-    <string name="ready_to_scan">Ready to scan NFC card...</string>
+    <string name="ready_to_scan">Ready to scan NFC card…</string>
     <string name="reading_tag">Reading tag, please wait…</string>
     <string name="tag_detected">Tag detected!</string>
     <string name="nfc_required">This app requires NFC which is not available on this device</string>
     <string name="nfc_disabled">NFC is disabled. Please enable it in settings</string>
     <string name="nfc_error">Error reading NFC tag</string>
+    <string name="nfc_scan_error">Error scanning NFC tag. Please try again.</string>
+    <string name="nfc_not_supported">NFC is not supported on this device</string>
+    <string name="nfc_tag_unsupported">Unsupported NFC tag type</string>
+    <string name="nfc_tag_empty">No data found on this tag</string>
+    <string name="nfc_tag_read_failed">Failed to read tag data</string>
+    
+    <!-- Help and Instructions -->
     <string name="help_text">Hold your device near an NFC tag to read its information</string>
+    <string name="help_scanning">Position your device near an NFC tag to read it</string>
+    <string name="help_tag_type">Tag Type: %1$s</string>
+    <string name="help_tag_id">Tag ID: %1$s</string>
+    <string name="help_tech_list">Supported Technologies: %1$s</string>
+    
+    <!-- Buttons -->
     <string name="read_nfc">Read NFC Tag</string>
-    <string name="debug_nfc">Debug NFC</string>
+    <string name="debug_nfc">Debug Info</string>
+    <string name="settings">Settings</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="retry">Retry</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="enable_nfc">Enable NFC</string>
+    <string name="open_settings">Open Settings</string>
+    
+    <!-- Permission Related -->
+    <string name="permission_rationale_title">Permission Required</string>
+    <string name="permission_rationale_message">NFC Card Reader needs NFC permission to read tags. Please grant the permission to continue.</string>
+    <string name="permission_required_title">Permission Required</string>
+    <string name="permission_required_message">NFC permission is required to read tags. Please grant the permission in app settings.</string>
+    <string name="grant">Grant</string>
+    <string name="deny">Deny</string>
+    
+    <!-- Debug Information -->
+    <string name="debug_info">Debug Information</string>
+    <string name="debug_nfc_status">NFC Status: %1$s</string>
+    <string name="debug_nfc_enabled">Enabled</string>
+    <string name="debug_nfc_disabled">Disabled</string>
+    <string name="debug_nfc_not_supported">Not Supported</string>
+    <string name="debug_device_info">Device Information</string>
+    <string name="debug_app_info">App Information</string>
+    <string name="debug_tag_info">Tag Information</string>
+    <string name="debug_tag_id">Tag ID: %1$s</string>
+    <string name="debug_tag_type">Tag Type: %1$s</string>
+    <string name="debug_tag_tech">Technologies: %1$s</string>
+    <string name="debug_tag_data">Tag Data: %1$s</string>
+    
+    <!-- Errors -->
+    <string name="error_occurred">An error occurred</string>
+    <string name="error_unknown">Unknown error</string>
+    <string name="error_retry">An error occurred. Please try again.</string>
+    <string name="error_permission_denied">Permission denied</string>
+    <string name="error_nfc_not_available">NFC is not available on this device</string>
+    <string name="error_nfc_disabled">NFC is disabled. Please enable it in settings</string>
+    
+    <!-- Status Messages -->
+    <string name="status_ready">Ready to scan</string>
+    <string name="status_reading">Reading tag…</string>
+    <string name="status_success">Read successful</string>
+    <string name="status_error">Error</string>
+    
+    <!-- Format Strings -->
+    <string name="format_date_time">%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS</string>
+    <string name="format_bytes">%1$.2f KB</string>
 </resources>

@@ -1,16 +1,49 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
-    <style name="Theme.NFCCardReader" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+    <style name="Theme.NFCCardReader" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color. -->
         <item name="colorPrimary">@color/purple_500</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
+        
         <!-- Secondary brand color. -->
         <item name="colorSecondary">@color/teal_200</item>
         <item name="colorSecondaryVariant">@color/teal_700</item>
         <item name="colorOnSecondary">@color/black</item>
+        
         <!-- Status bar color. -->
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">?attr/isLightTheme</item>
+        
+        <!-- Material 3 theming -->
+        <item name="materialButtonStyle">@style/Widget.Material3.Button</item>
+        <item name="materialCardViewStyle">@style/Widget.Material3.CardView</item>
+        
         <!-- Customize your theme here. -->
+        <item name="android:windowBackground">@color/white</item>
+        <item name="android:textColorPrimary">@color/black</item>
+        <item name="android:textColorSecondary">@color/gray_600</item>
+        
+        <!-- Dialog theme -->
+        <item name="alertDialogTheme">@style/ThemeOverlay.Material3.MaterialAlertDialog</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Material3.MaterialAlertDialog</item>
+        
+        <!-- Button styles -->
+        <item name="buttonStyle">@style/Widget.Material3.Button</item>
+        <item name="borderlessButtonStyle">@style/Widget.Material3.Button.TextButton</item>
+        
+        <!-- Text styles -->
+        <item name="textAppearanceHeadline1">@style/TextAppearance.Material3.HeadlineSmall</item>
+        <item name="textAppearanceHeadline2">@style/TextAppearance.Material3.HeadlineMedium</item>
+        <item name="textAppearanceHeadline3">@style/TextAppearance.Material3.HeadlineLarge</item>
+        <item name="textAppearanceBody1">@style/TextAppearance.Material3.BodyMedium</item>
+        <item name="textAppearanceBody2">@style/TextAppearance.Material3.BodySmall</item>
+    </style>
+    
+    <!-- Dark theme variant -->
+    <style name="Theme.NFCCardReader.Dark" parent="Theme.NFCCardReader">
+        <item name="android:windowBackground">@color/black</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorSecondary">@color/gray_300</item>
     </style>
 </resources>

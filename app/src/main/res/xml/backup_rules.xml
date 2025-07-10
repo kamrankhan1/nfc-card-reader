@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude specific shared preferences that shouldn't be backed up -->
+    <exclude domain="sharedpref" path="sensitive_prefs.xml"/>
+    
+    <!-- Include all files in the shared preferences directory except those excluded above -->
+    <include domain="sharedpref" path="."/>
+    
+    <!-- Include all files in the files directory -->
+    <include domain="file" path="."/>
+    
+    <!-- Include the database -->
+    <include domain="database" path="."/>
+    
+    <!-- Include the cache directory -->
+    <include domain="cache" path="."/>
+    
+    <!-- Include code cache -->
+    <include domain="code_cache" path="."/>
+    
+    <!-- Include external files -->
+    <include domain="external" path="."/>
+    
+    <!-- Include device protected storage -->
+    <include domain="deviceprotectedstorage" path="."/>
+    
+    <!-- Include root storage -->
+    <include domain="root" path="."/>
+</full-backup-content>

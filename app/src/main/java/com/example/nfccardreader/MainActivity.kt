@@ -1,116 +1,284 @@
 package com.example.nfccardreader
 
-import android.app.PendingIntent
 import android.content.Intent
 import android.nfc.NfcAdapter
 import android.nfc.Tag
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
+import android.view.View
+import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.example.nfccardreader.util.NFCUtils
+import com.example.nfccardreader.util.PermissionUtils
+import com.google.android.material.snackbar.Snackbar
+
+/**
+ * Main activity for the NFC Card Reader application.
+ * Handles NFC tag reading and displays tag information.
+ */
+class MainActivity : AppCompatActivity() {
+    
+    companion object {
+        private const val TAG = "NFCCardReader"
+    }
+    
+    // UI Components
+    private lateinit var statusTextView: TextView
+    private lateinit var nfcContentTextView: TextView
+    private lateinit var debugButton: Button
+    
+    // NFC Components
+    private var nfcAdapter: NfcAdapter? = null
+    private var isReading = false
 
 class MainActivity : AppCompatActivity() {
     private var nfcAdapter: NfcAdapter? = null
+    private lateinit var pendingIntent: PendingIntent
     private lateinit var statusTextView: TextView
     private lateinit var nfcContentTextView: TextView
+    private lateinit var debugButton: Button
+    
+    companion object {
+        private const val TAG = "NFCDemo"
+    }
 
+    // Activity result launcher for NFC settings
+    private val nfcSettingsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { /* No action needed on return */ }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Initialize views
+        initializeViews()
+        
+        // Check and request permissions
+        checkAndRequestPermissions()
+        
+        // Initialize NFC adapter
+        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
+        
+        // Check NFC status
+        checkNfcStatus()
+    }
+    
+    private fun initializeViews() {
         statusTextView = findViewById(R.id.statusTextView)
         nfcContentTextView = findViewById(R.id.nfcContentTextView)
-
-        nfcAdapter = NfcAdapter.getDefaultAdapter(this)
-
-        if (nfcAdapter == null) {
-            statusTextView.text = "NFC is not available on this device."
-        } else if (!nfcAdapter!!.isEnabled) {
-            statusTextView.text = "NFC is disabled. Please enable it in settings."
+        debugButton = findViewById(R.id.debugButton)
+        
+        // Set up debug button
+        debugButton.setOnClickListener {
+            showNfcDebugInfo()
+        }
+        
+        // Set initial status
+        updateStatus(getString(R.string.ready_to_scan))
+    }
+    
+    private fun checkAndRequestPermissions() {
+        if (!PermissionUtils.isNfcPermissionGranted(this)) {
+            // Request NFC permission
+            PermissionUtils.requestPermissions(this) { granted ->
+                if (granted) {
+                    // Permission granted, continue with NFC setup
+                    setupNFC()
+                } else {
+                    // Permission denied, show error
+                    showError(getString(R.string.error_permission_denied))
+                    // Show app settings dialog
+                    PermissionUtils.showAppSettingsDialog(this)
+                }
+            }
         } else {
-            statusTextView.text = "Ready to scan NFC card..."
+            // Permission already granted, continue with NFC setup
+            setupNFC()
         }
     }
 
+    private fun setupNFC() {
+        if (!NFCUtils.isNFCSupported(this)) {
+            showError(getString(R.string.nfc_not_supported))
+            return
+        }
+        
+        if (!NFCUtils.isNFCEnabled(this)) {
+            showNfcDisabledAlert()
+        }
+    }
+    
     override fun onResume() {
         super.onResume()
-        // Create a PendingIntent object so the Android system can populate it with the tag details
-        val intent = Intent(this, javaClass).apply {
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        
+        // Enable foreground dispatch for NFC
+        nfcAdapter?.let { adapter ->
+            if (adapter.isEnabled) {
+                NFCUtils.enableForegroundDispatch(this)
+                updateStatus(getString(R.string.ready_to_scan))
+            } else {
+                showNfcDisabledAlert()
+            }
+        } ?: run {
+            showError(getString(R.string.nfc_not_supported))
         }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
-
-        // Enable foreground dispatch to get the system to deliver the intent to your activity
-        nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
     }
 
     override fun onPause() {
         super.onPause()
-        // Disable foreground dispatch when the activity is paused
-        nfcAdapter?.disableForegroundDispatch(this)
+        NFCUtils.disableForegroundDispatch(this)
     }
 
-    override fun onNewIntent(intent: Intent) {
+    override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        // This method is called when a new intent is received
-        // (when the user scans an NFC tag)
-        handleIntent(intent)
-    }
-
-    private fun handleIntent(intent: Intent) {
-        val action = intent.action
-        if (NfcAdapter.ACTION_TAG_DISCOVERED == action ||
-            NfcAdapter.ACTION_TECH_DISCOVERED == action ||
-            NfcAdapter.ACTION_NDEF_DISCOVERED == action
+        
+        // Check if this is an NFC intent
+        if (NfcAdapter.ACTION_TAG_DISCOVERED == intent?.action ||
+            NfcAdapter.ACTION_NDEF_DISCOVERED == intent?.action ||
+            NfcAdapter.ACTION_TECH_DISCOVERED == intent?.action
         ) {
-            // Get the tag from the intent
-            val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-            tag?.let {
-                // Convert the tag ID to a hex string
-                val tagId = bytesToHexString(it.id)
-                val tagInfo = """
-                    Tag ID: $tagId
-                    Tech List: ${it.techList.joinToString(", ")}
-                    """.trimIndent()
-                
-                runOnUiThread {
-                    statusTextView.text = "NFC Tag Detected!"
-                    nfcContentTextView.text = tagInfo
+            // Process the NFC tag
+            intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)?.let { tag ->
+                processTag(tag)
+            } ?: showError(getString(R.string.nfc_tag_read_failed))
+        }
+    }
+    }       
+
+
+    private fun processTag(tag: Tag) {
+        if (isReading) {
+            Log.d(TAG, "Already reading a tag, ignoring new tag")
+            return
+        }
+        
+        isReading = true
+        updateStatus(getString(R.string.status_reading))
+        
+        try {
+            // Process the tag in a background thread to avoid ANR
+            Thread {
+                try {
+                    val tagInfo = NFCUtils.formatTagInfo(tag)
+                    
+                    runOnUiThread {
+                        updateStatus(getString(R.string.status_success))
+                        nfcContentTextView.text = tagInfo
+                        
+                        // Show a snackbar with tag ID
+                        Snackbar.make(
+                            findViewById(android.R.id.content),
+                            getString(R.string.tag_detected),
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing tag", e)
+                    showError(getString(R.string.nfc_scan_error))
+                } finally {
+                    isReading = false
                 }
-                
-                // You can add more specific handling based on the tag type
-                // For example, read NDEF messages if it's an NDEF tag
-            } ?: run {
-                runOnUiThread {
-                    statusTextView.text = "Error: No tag data found"
-                }
+            }.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing tag", e)
+            showError(getString(R.string.nfc_scan_error))
+            isReading = false
+        }
+    }
+    
+    private fun checkNfcStatus() {
+        when {
+            nfcAdapter == null -> {
+                showError(getString(R.string.nfc_not_supported))
+                debugButton.visibility = View.GONE
+            }
+            !nfcAdapter!!.isEnabled -> {
+                showNfcDisabledAlert()
+                debugButton.visibility = View.VISIBLE
+            }
+            else -> {
+                updateStatus(getString(R.string.ready_to_scan))
+                debugButton.visibility = View.VISIBLE
             }
         }
     }
-
-    private fun bytesToHexString(src: ByteArray): String {
-        val stringBuilder = StringBuilder("0x")
-        if (src.isNotEmpty()) {
-            val b = src[0] and 0xFF.toByte()
-            var hex = Integer.toHexString(b.toInt() and 0xFF)
-            if (hex.length < 2) {
-                stringBuilder.append('0')
-            }
-            stringBuilder.append(hex)
-            
-            for (i in 1 until src.size) {
-                val b = src[i] and 0xFF.toByte()
-                hex = Integer.toHexString(b.toInt() and 0xFF)
-                if (hex.length < 2) {
-                    stringBuilder.append('0')
+    
+    private fun showNfcDisabledAlert() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.nfc_disabled)
+            .setMessage(R.string.nfc_disabled)
+            .setPositiveButton(R.string.open_settings) { _, _ ->
+                // Open NFC settings
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                    nfcSettingsLauncher.launch(Intent(Settings.ACTION_NFC_SETTINGS))
+                } else {
+                    nfcSettingsLauncher.launch(Intent(Settings.ACTION_WIRELESS_SETTINGS))
                 }
-                stringBuilder.append(hex)
             }
+            .setNegativeButton(android.R.string.cancel) { dialog, _ ->
+                dialog.dismiss()
+                showError(getString(R.string.error_nfc_disabled))
+            }
+            .setCancelable(false)
+            .show()
+    }
+    
+    private fun showNfcDebugInfo() {
+        try {
+            val debugInfo = """
+                === ${getString(R.string.debug_info)} ===
+                ${getString(R.string.debug_nfc_status)}: ${
+                    when {
+                        nfcAdapter == null -> getString(R.string.debug_nfc_not_supported)
+                        nfcAdapter?.isEnabled == true -> getString(R.string.debug_nfc_enabled)
+                        else -> getString(R.string.debug_nfc_disabled)
+                    }
+                }
+                
+                === ${getString(R.string.debug_device_info} ===
+                ${getString(R.string.debug_tag_type)}: ${nfcAdapter?.let { NFCUtils.getTagType(it) } ?: "N/A"}
+                ${getString(R.string.debug_tag_tech)}: ${
+                    nfcAdapter?.let { NFCUtils.getTagTechList(it).joinToString(", ") } ?: "N/A"
+                }
+                
+                === ${getString(R.string.debug_app_info} ===
+                ${getString(R.string.app_name)} v${packageManager.getPackageInfo(packageName, 0).versionName}
+                Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
+                """.trimIndent()
+                
+            nfcContentTextView.text = debugInfo
+            updateStatus(getString(R.string.debug_info))
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing debug info", e)
+            showError("${getString(R.string.error_occurred)}: ${e.localizedMessage}")
         }
-        return stringBuilder.toString()
+    }
+    
+    private fun updateStatus(status: String) {
+        runOnUiThread {
+            statusTextView.text = status
+        }
+    }
+    
+    private fun showError(message: String) {
+        runOnUiThread {
+            statusTextView.text = getString(R.string.status_error)
+            nfcContentTextView.text = message
+            
+            // Show a longer toast for errors
+            Toast.makeText(
+                this@MainActivity,
+                message,
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 }
