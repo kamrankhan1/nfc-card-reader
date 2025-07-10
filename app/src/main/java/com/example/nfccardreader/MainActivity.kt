@@ -7,13 +7,37 @@ import android.nfc.Tag
 import android.os.Bundle
 import android.util.Log
 import android.widget.TextView
+import android.view.animation.AnimationUtils
+import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
+    private val TAG = "NFCDemo"
     private var nfcAdapter: NfcAdapter? = null
     private lateinit var statusTextView: TextView
     private lateinit var nfcContentTextView: TextView
+    private lateinit var readingStatusTextView: TextView
+    private lateinit var readingProgressBar: ProgressBar
+    private lateinit var nfcIcon: ImageView
+    private lateinit var contentScrollView: android.widget.ScrollView
+    private var isReading = false
+    private lateinit var pendingIntent: PendingIntent
+    private val techList = arrayOf(
+        arrayOf(android.nfc.tech.Ndef::class.java.name),
+        arrayOf(android.nfc.tech.NdefFormatable::class.java.name),
+        arrayOf(android.nfc.tech.NfcA::class.java.name),
+        arrayOf(android.nfc.tech.NfcB::class.java.name),
+        arrayOf(android.nfc.tech.NfcF::class.java.name),
+        arrayOf(android.nfc.tech.NfcV::class.java.name),
+        arrayOf(android.nfc.tech.IsoDep::class.java.name),
+        arrayOf(android.nfc.tech.MifareClassic::class.java.name),
+        arrayOf(android.nfc.tech.MifareUltralight::class.java.name),
+        arrayOf(android.nfc.tech.NfcBarcode::class.java.name)
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,31 +45,47 @@ class MainActivity : AppCompatActivity() {
 
         statusTextView = findViewById(R.id.statusTextView)
         nfcContentTextView = findViewById(R.id.nfcContentTextView)
+        readingStatusTextView = findViewById(R.id.readingStatusTextView)
+        readingProgressBar = findViewById(R.id.readingProgressBar)
+        nfcIcon = findViewById(R.id.nfcIcon)
+        contentScrollView = findViewById(R.id.contentScrollView)
+        
+        // Set initial UI state
+        updateUIState(UIState.READY)
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
 
         if (nfcAdapter == null) {
-            statusTextView.text = "NFC is not available on this device."
+            updateUIState(UIState.ERROR, getString(R.string.nfc_required))
         } else if (!nfcAdapter!!.isEnabled) {
-            statusTextView.text = "NFC is disabled. Please enable it in settings."
+            updateUIState(UIState.ERROR, getString(R.string.nfc_disabled))
         } else {
-            statusTextView.text = "Ready to scan NFC card..."
+            updateUIState(UIState.READY)
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Create a PendingIntent object so the Android system can populate it with the tag details
+        
+        // Create a generic PendingIntent that will be used to get the tag
         val intent = Intent(this, javaClass).apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
-        val pendingIntent = PendingIntent.getActivity(
+        pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
         )
 
-        // Enable foreground dispatch to get the system to deliver the intent to your activity
-        nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
+        // Enable foreground dispatch
+        try {
+            nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, techList)
+            Log.d(TAG, "NFC Foreground dispatch enabled")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error enabling NFC foreground dispatch", e)
+            runOnUiThread {
+                statusTextView.text = "Error enabling NFC"
+            }
+        }
     }
 
     override fun onPause() {
@@ -62,36 +102,133 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        val action = intent.action
-        if (NfcAdapter.ACTION_TAG_DISCOVERED == action ||
-            NfcAdapter.ACTION_TECH_DISCOVERED == action ||
-            NfcAdapter.ACTION_NDEF_DISCOVERED == action
+        if (isReading) return // Prevent multiple reads at once
+        
+        Log.d(TAG, "New intent received: ${intent.action}")
+        
+        if (intent.action == NfcAdapter.ACTION_TAG_DISCOVERED ||
+            intent.action == NfcAdapter.ACTION_TECH_DISCOVERED ||
+            intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED
         ) {
-            // Get the tag from the intent
-            val tag: Tag? = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-            tag?.let {
-                // Convert the tag ID to a hex string
-                val tagId = bytesToHexString(it.id)
-                val tagInfo = """
-                    Tag ID: $tagId
-                    Tech List: ${it.techList.joinToString(", ")}
-                    """.trimIndent()
-                
-                runOnUiThread {
-                    statusTextView.text = "NFC Tag Detected!"
-                    nfcContentTextView.text = tagInfo
+            isReading = true
+            updateUIState(UIState.READING)
+            
+            try {
+                // Get the tag from the intent
+                val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+                if (tag != null) {
+                    Log.d(TAG, "Tag discovered: ${bytesToHexString(tag.id)}")
+                    
+                    // Simulate reading delay for better UX
+                    nfcContentTextView.postDelayed({
+                        try {
+                            // Convert the tag ID to a hex string
+                            val tagId = bytesToHexString(tag.id)
+                            val tagInfo = """
+                                Tag ID: $tagId
+                                Tech List: ${tag.techList.joinToString("\n    ", "\n    ")}
+                                
+                                Raw ID: ${tag.id.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }}
+                                """.trimIndent()
+                            
+                            updateUIState(UIState.READ_SUCCESS, tagInfo)
+                            
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error processing tag", e)
+                            updateUIState(UIState.ERROR, "${getString(R.string.nfc_error)}\n${e.localizedMessage}")
+                        } finally {
+                            isReading = false
+                        }
+                    }, 500) // Small delay to show the reading state
+                    
+                } else {
+                    updateUIState(UIState.ERROR, getString(R.string.nfc_error))
+                    isReading = false
                 }
-                
-                // You can add more specific handling based on the tag type
-                // For example, read NDEF messages if it's an NDEF tag
-            } ?: run {
-                runOnUiThread {
-                    statusTextView.text = "Error: No tag data found"
-                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error handling NFC intent", e)
+                updateUIState(UIState.ERROR, "${getString(R.string.nfc_error)}\n${e.localizedMessage}")
+                isReading = false
             }
         }
     }
 
+    /**
+     * Converts a byte array to a hexadecimal string.
+     * @param src the byte array to convert
+     * @return a string representation of the byte array in hexadecimal format
+     */
+    private enum class UIState {
+        READY, READING, READ_SUCCESS, ERROR
+    }
+    
+    private fun updateUIState(state: UIState, message: String? = null) {
+        runOnUiThread {
+            when (state) {
+                UIState.READY -> {
+                    nfcIcon.setImageResource(R.drawable.ic_nfc)
+                    nfcIcon.clearAnimation()
+                    readingProgressBar.isVisible = false
+                    readingStatusTextView.isVisible = false
+                    contentScrollView.isVisible = false
+                    statusTextView.text = getString(R.string.ready_to_scan)
+                    statusTextView.setTextColor(ContextCompat.getColor(this, R.color.purple_500))
+                }
+                UIState.READING -> {
+                    nfcIcon.setImageResource(R.drawable.ic_nfc_reading)
+                    // Add pulse animation
+                    val pulse = AnimationUtils.loadAnimation(this, R.anim.pulse).apply {
+                        repeatCount = -1 // Infinite
+                    }
+                    nfcIcon.startAnimation(pulse)
+                    readingProgressBar.isVisible = true
+                    readingStatusTextView.isVisible = true
+                    contentScrollView.isVisible = false
+                    statusTextView.text = getString(R.string.reading_tag)
+                    statusTextView.setTextColor(ContextCompat.getColor(this, R.color.teal_700))
+                }
+                UIState.READ_SUCCESS -> {
+                    nfcIcon.setImageResource(R.drawable.ic_nfc_success)
+                    nfcIcon.clearAnimation()
+                    readingProgressBar.isVisible = false
+                    readingStatusTextView.isVisible = false
+                    contentScrollView.isVisible = true
+                    statusTextView.text = getString(R.string.tag_detected)
+                    statusTextView.setTextColor(ContextCompat.getColor(this, R.color.teal_700))
+                    nfcContentTextView.text = message
+                    
+                    // Scroll to top
+                    contentScrollView.post {
+                        contentScrollView.scrollTo(0, 0)
+                    }
+                    
+                    // Vibrate for feedback
+                    val vibrator = getSystemService(VIBRATOR_SERVICE) as android.os.Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(100)
+                    }
+                }
+                UIState.ERROR -> {
+                    nfcIcon.setImageResource(R.drawable.ic_nfc_error)
+                    nfcIcon.clearAnimation()
+                    readingProgressBar.isVisible = false
+                    readingStatusTextView.isVisible = false
+                    contentScrollView.isVisible = false
+                    statusTextView.text = message ?: getString(R.string.nfc_error)
+                    statusTextView.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+                    
+                    // Reset after delay
+                    nfcContentTextView.postDelayed({
+                        updateUIState(UIState.READY)
+                    }, 3000)
+                }
+            }
+        }
+    }
+    
     private fun bytesToHexString(src: ByteArray): String {
         val stringBuilder = StringBuilder("0x")
         for (b in src) {

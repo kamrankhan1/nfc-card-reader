@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">NFC Card Reader</string>
+    <string name="nfc_icon_desc">NFC Icon</string>
+    <string name="ready_to_scan">Ready to scan NFC card...</string>
+    <string name="reading_tag">Reading tag, please wait…</string>
+    <string name="tag_detected">Tag detected!</string>
+    <string name="nfc_required">This app requires NFC which is not available on this device</string>
+    <string name="nfc_disabled">NFC is disabled. Please enable it in settings</string>
+    <string name="nfc_error">Error reading NFC tag</string>
+    <string name="help_text">Hold your device near an NFC tag to read its information</string>
 </resources>
