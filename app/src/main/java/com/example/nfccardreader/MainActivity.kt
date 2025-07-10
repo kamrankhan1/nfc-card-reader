@@ -323,13 +323,13 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 
-                === ${getString(R.string.debug_device_info} ===
+                === ${getString(R.string.debug_device_info)} ===
                 ${getString(R.string.debug_tag_type)}: ${nfcAdapter?.let { NFCUtils.getTagType(it) } ?: "N/A"}
                 ${getString(R.string.debug_tag_tech)}: ${
                     nfcAdapter?.let { NFCUtils.getTagTechList(it).joinToString(", ") } ?: "N/A"
                 }
                 
-                === ${getString(R.string.debug_app_info} ===
+                === ${getString(R.string.debug_app_info)} ===
                 ${getString(R.string.app_name)} v${packageManager.getPackageInfo(packageName, 0).versionName}
                 Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})
                 """.trimIndent()
